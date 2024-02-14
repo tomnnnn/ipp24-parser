@@ -1,38 +1,49 @@
 import sys
+from dataclasses import dataclass, make_dataclass
+from enum import Enum
 
-class Token():
-    def __init__(self, instruction, operands) -> None:
-        self.instruction = instruction
-        self.operands = operands
+class TokenTypes(Enum):
+    INSTR = 1
+    VAR = 2
+    STR = 3
+    
+@dataclass
+class Token:
+    newline: bool
+    type: TokenTypes
+    string: str
 
-class Lexer():
-    """
-    Lexer converts plain text code from a given source file to a tokenized instruction.
-    It ignores empty lines and removes comments in the process.
-    """
-    def __init__(self, inputFile) -> None:
-        self.inputFile = inputFile
+class TokenIterator:
+    current_token: Token
 
-    def __read_instruction(self):
-        '''Returns next non-empty line stripped from comments'''
-        line = self.inputFile.readline()
-        
-        # skip empty lines or while line comment
-        while(line.strip() == "" or line[0] == '#'):
+    def __init__(self, input_file) -> None:
+        self.inputFile = input_file
+        self.current_token = Token(True,TokenTypes.INSTR, "")
+
+    def __iter__(self):
+        while True:
             line = self.inputFile.readline()
-        
-        return line
+            if not line:
+                break
+            line = line.partition('#')[0]
 
-    def __tokenize_instruction(self, instruction):
-        '''Converts string instruction into a token object'''
-        # TODO
-        return instruction
+            newline = True
+            for word in line.split():
+                self.current_token.newline = newline
+                self.current_token.type = self.__detect_token_type(word)
+                self.current_token.string = word
+                
+                yield self.current_token
 
-    def next_instruction(self):
-        '''Returns next instruction in a tokenized form'''
-        instruction = self.__read_instruction()
-        token = self.__tokenize_instruction(instruction)
-        if(token != None):
-            return token
-        else:
-            sys.exit(0);
+    def __detect_token_type(self, string: str) -> TokenTypes:
+        return TokenTypes.INSTR
+    
+
+input_file = sys.stdin
+token_iter = TokenIterator(input_file)
+counter = 0
+for token in token_iter:
+    print(str(counter) + " " + token.string)
+    counter += 1
+
+print(token_iter.current_token)
