@@ -1,21 +1,9 @@
-import sys
 import re
 from dataclasses import dataclass
-from enum import Enum, auto
 
-class LexError(Exception):
-    """Signals a lexical error in the input"""
+from common.token_enums import TokenTypes
+from common.exceptions import LexError
 
-class TokenTypes(Enum):
-    """Enumeration for differentiating token types"""
-    HEAD = auto()
-    ALPHANUM = auto()
-    VAR = auto()
-    STR = auto()
-    INT = auto()
-    BOOL = auto()
-    ERR = auto()
-    
 @dataclass
 class Token:
     """
@@ -82,14 +70,3 @@ class TokenIterator:
                 newline = False
 
                 yield self.current_token
-
-# input_file = sys.stdin
-# token_iter = TokenIterator(input_file)
-# counter = 0
-# try:
-#     for token in token_iter:
-#         print(str(counter), end=' ')
-#         print(token)
-#         counter += 1
-# except LexError:
-#     print("Lexical error encountered")

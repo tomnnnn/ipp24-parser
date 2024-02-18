@@ -1,7 +1,10 @@
 import unittest
-from tests.test_exceptions import TestException
+from .test_exceptions import TestException
 from io import StringIO
-from modules.lexer import LexError,TokenTypes,TokenIterator
+
+from lexer.token import TokenIterator
+from common.token_enums import TokenTypes
+from common.exceptions import LexError
 
 
 class LexerTests(unittest.TestCase):
