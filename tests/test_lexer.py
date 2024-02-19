@@ -24,21 +24,18 @@ class LexerTests(unittest.TestCase):
         Compares token types given by the TokenIterator against token types passed by the argument tokenType.
         Expects a lexically correct string.
         """
-        tokens = iter(self._tokens_from_string(inputStr))
+        tokens = self._tokens_from_string(inputStr)
+        line_token_types = []
 
-        for type in tokenType:
+        for token_line in tokens:
+            for token in token_line:
+                line_token_types.append(token.type)
+
+        for typeA, typeB in zip(tokenType, line_token_types):
             try:
-                token = next(tokens)
-                self.assertTrue(type == token.type)
+                self.assertTrue(typeA == typeB)
             except LexError:
-                self.fail("TokenIterator raised LexError unexpectedly: "+inputStr)
-
-        try:
-            next(tokens)
-        except StopIteration:
-            pass
-        else:
-            raise TestException("Lexer returned more tokens than expected")
+                self.fail("TokenIterator raised LexError unexpectedly: " + inputStr)
 
     # Tests ----------------------------------
 
