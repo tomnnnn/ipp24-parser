@@ -1,16 +1,12 @@
 import re
-from dataclasses import dataclass
-
 from common.token_enums import TokenTypes
 from common.exceptions import LexError
 
-@dataclass
 class Token:
     """
     Holds relevant information about the current token.
     Implements a Set method for correctly setting its atributes based on a word passed as an argument
     """
-    newline: bool
     type: TokenTypes
     string: str
             
@@ -23,6 +19,9 @@ class Token:
         TokenTypes.INT : r'^int@.+$',
         TokenTypes.BOOL : r'^bool@(false|true)$'
     }
+
+    def __init__(self, word) -> None:
+        self.set_token(word)
 
     def __detect_token_type(self, string: str) -> TokenTypes:
         """
@@ -40,33 +39,33 @@ class Token:
                 return type
         raise LexError
 
-    def Set(self,word,newline):
-        self.newline = newline
+    def set_token(self,word):
         self.type = self.__detect_token_type(word)
         self.string = word
 
 
 class TokenIterator:
     """
-    Iterator returning next token in the input stream. The input stream file is defined in the constructor.
-    On lexical error raises LexError exception
+    Iterator returning a list of tokens corresponding to one line in the input stream.
+    On lexical error raises LexError exception.
     """
-    current_token: Token
-
     def __init__(self, input_file) -> None:
-        self.inputFile = input_file
-        self.current_token = Token(True,TokenTypes.ALPHANUM, '')
+        self.input_file = input_file
 
     def __iter__(self):
         while True:
-            line = self.inputFile.readline()
+            line = self.input_file.readline()
+
             if not line:
                 break
+            elif not line.strip():
+                continue
+
             line = line.partition('#')[0]
 
-            newline = True
-            for word in line.split():
-                self.current_token.Set(word,newline)
-                newline = False
+            line_tokens = []
 
-                yield self.current_token
+            for word in line.split():
+                line_tokens.append(Token(word))
+
+            yield line_tokens
