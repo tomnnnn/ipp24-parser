@@ -8,39 +8,54 @@ class Token:
     Implements a Set method for correctly setting its atributes based on a word passed as an argument
     """
     type: TokenTypes
+    type_secondary: TokenTypes
     string: str
             
     # regex for token types definitions
-    _typeRegex = {
+    _type_regex = {
         TokenTypes.HEAD : r'^.IPPcode24$',
         TokenTypes.ALPHANUM : r'^[a-zA-Z][\w$%*!?-]*$',
-        TokenTypes.VAR : r'^(?i:(LF|GF))@[a-zA-z][\w$%*!?-]*$',
-        TokenTypes.STR : r'^string@([^\s#\\]*(\\\d{3})?)*$',
-        TokenTypes.INT : r'^int@.+$',
+        TokenTypes.VAR : r'^(LF|GF|TF)@[a-zA-z][\w$%*!?-]*$',
+        TokenTypes.STR : r'^string@([^\s#\\]*(\\\d{3})*)*$',
+        TokenTypes.INT : r'^int@-?(((\d+_?)+)|(0o([0-7]+_?)+)|(0x([\da-fA-F]+_?)+))$',
+        TokenTypes.NIL : r'^nil@nil$',
         TokenTypes.BOOL : r'^bool@(false|true)$'
+    }
+
+    _type_secondary_regex = {
+        TokenTypes.TYPE : r'^(int|bool|string)$'
+    }
+
+    _const_type_regex = {
     }
 
     def __init__(self, word) -> None:
         self.set_token(word)
 
-    def __detect_token_type(self, string: str) -> TokenTypes:
+    def _detect_token_type(self, string: str) -> TokenTypes:
         """
         Determines the type of token from the currently processed word. 
-        If a type cannot be determined, raises LexError.
+        If a type cannot be determined, raises LexError exception
         """
-        for type in self._typeRegex:
-            if re.match(self._typeRegex[type],string):
-                if(type == TokenTypes.INT):
-                    # additional integer format check
-                    try:
-                        int(string.split('@')[1],0)
-                    except ValueError:
-                        continue
+        for type in self._type_regex:
+            if re.match(self._type_regex[type],string):
                 return type
         raise LexError
 
+    def _detect_type_sec_type(self, string: str) -> TokenTypes:
+        """
+        ALPHNUM token types can be further classified into secondary types
+        """
+        for type in self._type_secondary_regex:
+            if re.match(self._type_secondary_regex[type],string):
+                return type
+        return TokenTypes.ALPHANUM
+
+
     def set_token(self,word):
-        self.type = self.__detect_token_type(word)
+        self.type = self._detect_token_type(word)
+        if(self.type == TokenTypes.ALPHANUM):
+            self.type_secondary = self._detect_type_sec_type(word)
         self.string = word
 
 
@@ -55,13 +70,13 @@ class TokenIterator:
     def __iter__(self):
         while True:
             line = self.input_file.readline()
-
             if not line:
                 break
-            elif not line.strip():
-                continue
 
             line = line.partition('#')[0]
+            if not line.strip():
+                continue
+
 
             line_tokens = []
 
