@@ -6,28 +6,35 @@ import sys
 
 from lexer.token import Token
 
-class OperandsContext():
-    def __init__(self, operands_context) -> None:
-        self.operands_context = operands_context
+class OperandsReference():
+    def __init__(self, reference, context_template) -> None:
+        self.reference = reference
+        # set the template for determining the right token types based on the context (instruction)
+        if context_template == None:
+            self.context_template = reference
+        else:
+            self.context_template = context_template
 
-    def check(self, operands):
+    def compare(self, operands : list[Token]) -> list[TokenTypes]:
         """
-        Checks, whether a given operand list matches this context
+        Compares the given operands list with the reference
         """
+        # 
+        types_context = []
 
-    def _operands_compare(self,operands_a, operands_b):
-        if len(operands_a) != len(operands_b):
-            return False
+        if len(self.reference) != len(operands):
+            raise SyntaxError
         
-        for operand_a,operand_b in zip(operands_a,operands_b):
-            if operand_a == TokenTypes.SYM and operand_b in [TokenTypes.INT, TokenTypes.STR, TokenTypes.NIL, TokenTypes.VAR, TokenTypes.BOOL]:
-                continue
-            if operand_b == TokenTypes.SYM and operand_a in [TokenTypes.INT, TokenTypes.STR, TokenTypes.NIL, TokenTypes.VAR, TokenTypes.BOOL]:
-                continue
-            if operand_a == operand_b:
-                continue
-            return False
-        return True
+        for operand,operand_ref,operand_context in zip(operands,self.reference,self.context_template):
+            if operand.type != operand_ref and operand.type_secondary != operand_ref:
+                # operands mismatch
+                raise SyntaxError
+            # if the reference type is SYM, change it to the specific type
+            if operand_ref == TokenTypes.SYM:
+                types_context.append(operand.type_secondary)
+            else:
+                types_context.append(operand_context)
+        return types_context
 
 
 class State(ABC):
@@ -46,79 +53,33 @@ class StateHeader(State):
         Checks the compulsory occurence of the .IPPcode24 header
         Raises MissingHeadError if the header is not properly placed/missing
         """
-        if not self.context.next_token_buffer():
-            # end of token stream
-            print(self.context.token_buffer)
+        try:
+            if not self.context.next_token_buffer():
+                # end of token stream
+                raise MissingHeadError
+            if len(self.context.token_buffer) != 1 or self.context.token_buffer[0].type != TokenTypes.HEAD:
+                # header is not alone on the line or it is missing
+                raise MissingHeadError
+            else:
+                return StateInstrSetContext(self.context)
+        except LexError:
+            # lexical error in the first token means incorrectly written header
             raise MissingHeadError
-
-        if len(self.context.token_buffer) != 1 or self.context.token_buffer[0].type != TokenTypes.HEAD:
-            # header is not alone on the line or it is missing
-            print(self.context.token_buffer)
-            raise MissingHeadError
-        else:
-            return StateInstrSetContext(self.context)
 
 class StateInstrSetContext(State):
-    def _operands_compare(self,operands_a, operands_b):
-        if len(operands_a) != len(operands_b):
-            return False
-        
-        for operand_a,operand_b in zip(operands_a,operands_b):
-            if operand_a == TokenTypes.SYM and operand_b in [TokenTypes.INT, TokenTypes.STR, TokenTypes.NIL, TokenTypes.VAR, TokenTypes.BOOL]:
-                continue
-            if operand_b == TokenTypes.SYM and operand_a in [TokenTypes.INT, TokenTypes.STR, TokenTypes.NIL, TokenTypes.VAR, TokenTypes.BOOL]:
-                continue
-            if operand_a == operand_b:
-                continue
-            return False
-        return True
-
-    def _get_operand_context(self,opcode : str, operands : list):
-        """
-        Accepts instruction opcode and its argument types given by lexer
-        Returns argument types according to their context (instruction they are used in) or None if the operand
-        """
-
-        symb = [TokenTypes.VAR, TokenTypes.INT, TokenTypes.STR, TokenTypes.BOOL, TokenTypes.NIL]
-        operand_types = [operand.type for operand in operands]
-
-        if opcode in ("MOVE", "STRLEN", "TYPE", "NOT", "INT2CHAR"):
-            # operands: VAR SYMB
-            if self._operands_compare(operand_types, [TokenTypes.VAR, TokenTypes.SYM]):
-                return True, operand_types
-        if opcode in ("CREATEFRAME", "PUSHFRAME", "POPFRAME", "RETURN"):
-            # no operands
-            if self._operands_compare(operand_types, []):
-                return True, operand_types
-        if opcode in ("PUSHS", "WRITE", "EXIT"):
-            # operands: SYMB
-            if self._operands_compare(operand_types, [TokenTypes.SYM]):
-                return True, operand_types
-        if opcode in ("DEFVAR", "POPS"):
-            # operands: VAR
-            if self._operands_compare(operand_types, [TokenTypes.VAR]):
-                return True, operand_types
-        if opcode in ("ADD", "SUB", "MUL", "IDIV","LT", "GT", "EQ",
-                      "AND", "OR", "STR2INT", "CONCAT", "GETCHAR",
-                      "SETCHAR", ):
-            # operands: VAR SYMB SYMB
-            if self._operands_compare(operand_types, [TokenTypes.VAR, TokenTypes.SYM, TokenTypes.SYM]):
-                return True, operand_types
-        if opcode in ("READ"):
-            # operands: VAR TYPE
-            if self._operands_compare(operand_types, [TokenTypes.VAR, TokenTypes.ALPHANUM]) and operands[1].string in ['int', 'bool', 'string']:
-                return True, [TokenTypes.VAR, TokenTypes.TYPE]
-        if opcode in ("LABEL", "CALL", "JUMP"):
-            # operands: LABEL
-            if self._operands_compare(operand_types, [TokenTypes.ALPHANUM]):
-                return True, [TokenTypes.LABEL]
-        if opcode in ("JUMPIFEQ", "JUMPIFNEQ"):
-            # operands: LABEL SYMB SYMB
-            if self._operands_compare(operand_types, [TokenTypes.ALPHANUM, TokenTypes.SYM, TokenTypes.SYM]):
-                return True, [TokenTypes.LABEL, operand_types[1], operand_types[2]]
-
-        return False, None
-    
+    _operand_references = {
+        **dict.fromkeys(("MOVE", "STRLEN", "TYPE", "NOT", "INT2CHAR"),OperandsReference([TokenTypes.VAR, TokenTypes.SYM], None)),
+        **dict.fromkeys(("CREATEFRAME", "PUSHFRAME", "POPFRAME", "RETURN"),OperandsReference([],None)),
+        **dict.fromkeys(("PUSHS", "WRITE", "EXIT"),OperandsReference([TokenTypes.SYM],None)),
+        **dict.fromkeys(("DEFVAR", "POPS"),OperandsReference([TokenTypes.VAR],None)),
+        **dict.fromkeys(("ADD", "SUB", "MUL", "IDIV","LT", "GT", "EQ",
+                      "AND", "OR", "STR2INT", "CONCAT", "GETCHAR", "SETCHAR", ),OperandsReference([TokenTypes.VAR, TokenTypes.SYM, TokenTypes.SYM],None)),
+        **dict.fromkeys(("READ",),OperandsReference([TokenTypes.VAR, TokenTypes.TYPE],None)),
+        # LABEL
+        **dict.fromkeys(("LABEL", "CALL", "JUMP"),OperandsReference([TokenTypes.ALPHANUM], [TokenTypes.LABEL])),
+        # LABEL SYM SYM
+        **dict.fromkeys(("JUMPIFEQ", "JUMPIFNEQ"),OperandsReference([TokenTypes.ALPHANUM, TokenTypes.SYM, TokenTypes.SYM],[TokenTypes.LABEL, TokenTypes.SYM, TokenTypes.SYM])),
+    }
 
     def handle(self):
         """
@@ -129,23 +90,24 @@ class StateInstrSetContext(State):
         if not self.context.next_token_buffer():
             # end of token stream
             return StateFinish(self.context)
+        if self.context.token_buffer[0].type == TokenTypes.HEAD:
+            # unexpected header token
+            raise SyntaxError
 
         opcode = self.context.token_buffer[0].string.upper()
         operands = self.context.token_buffer[1:]
 
-        opcode_correct, arguments_context = self._get_operand_context(opcode,operands)
-
-        if not opcode_correct:
+        if not opcode in self._operand_references:
             raise OpcodeError
-        elif arguments_context == None:
-            raise SyntaxError
+
+        operands_context = self._operand_references[opcode].compare(operands)
 
         # change the first token type to instruction type
         self.context.token_buffer[0].type = TokenTypes.INST
         # change the argument token types 
-        for idx in range(0, len(arguments_context)):
+        for idx in range(0, len(operands_context)):
             # the tokens to be modified start on index 1, the token on index 0 is the opcode
-            self.context.token_buffer[idx+1].type = arguments_context[idx]
+            self.context.token_buffer[idx+1].type_context = operands_context[idx]
 
         return StateInstrBuild(self.context)
 
@@ -155,13 +117,11 @@ class StateInstrBuild(State):
         Edit the token str for printing into the output XML tree
         Returns the formatted token string
         """
-        if operand.type in [TokenTypes.INT, TokenTypes.BOOL, TokenTypes.STR, TokenTypes.NIL]:
+        if operand.type_context in [TokenTypes.INT, TokenTypes.BOOL, TokenTypes.STR, TokenTypes.NIL]:
             return operand.string.split('@',1)[1]
 
         # other types remain unchanged
         return operand.string
-
-
 
     def handle(self):
         """
@@ -174,7 +134,7 @@ class StateInstrBuild(State):
         operands = self.context.token_buffer[1:]
         for idx, operand in enumerate(operands):
             operand_el = ET.SubElement(instr_el, "arg" + str(idx+1))
-            operand_el.set("type", operand.type.value)
+            operand_el.set("type", operand.type_context.value)
             operand_el.text = self._format_operand_string(operand)
 
         self.context.instruction_cnter += 1

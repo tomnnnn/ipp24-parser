@@ -24,7 +24,7 @@ class Parser:
         try:
             while not self._state.endingState:
                 self._handle_state()
-
+            # handle ending state and exit
             self._handle_state()
         except MissingHeadError:
             print("Error: Missing head", file=sys.stderr)

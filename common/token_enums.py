@@ -14,4 +14,5 @@ class TokenTypes(Enum):
     ERR = auto()
     INST = auto()
     SYM = auto()
+    NONE = auto()
 
