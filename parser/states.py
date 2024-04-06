@@ -61,12 +61,12 @@ class StateHeader(State):
                 # header is not alone on the line or it is missing
                 raise MissingHeadError
             else:
-                return StateInstrSetContext(self.context)
+                return StateSetContext(self.context)
         except LexError:
             # lexical error in the first token means incorrectly written header
             raise MissingHeadError
 
-class StateInstrSetContext(State):
+class StateSetContext(State):
     _operand_references = {
         **dict.fromkeys(("MOVE", "STRLEN", "TYPE", "NOT", "INT2CHAR"),OperandsReference([TokenTypes.VAR, TokenTypes.SYM], None)),
         **dict.fromkeys(("CREATEFRAME", "PUSHFRAME", "POPFRAME", "RETURN"),OperandsReference([],None)),
@@ -138,7 +138,7 @@ class StateInstrBuild(State):
             operand_el.text = self._format_operand_string(operand)
 
         self.context.instruction_cnter += 1
-        return StateInstrSetContext(self.context)
+        return StateSetContext(self.context)
 
 class StateFinish(State):
     endingState = True
